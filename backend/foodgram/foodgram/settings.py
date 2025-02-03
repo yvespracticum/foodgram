@@ -49,6 +49,7 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+AUTH_USER_MODEL = 'foodapp.FoodgramUser'
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -63,7 +64,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-AUTH_USER_MODEL = 'foodapp.FoodgramUser'
 STATIC_URL = 'static/'
 # MEDIA_ROOT = BASE_DIR / 'media'
 # MEDIA_URL = '/media/'
