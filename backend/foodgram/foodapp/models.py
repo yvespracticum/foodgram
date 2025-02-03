@@ -6,7 +6,9 @@ from django.db import models
 class FoodgramUser(AbstractUser):
     """Пользователь."""
     username = models.CharField(max_length=150, unique=True)
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    avatar = models.ImageField(upload_to='avatars/',
+                               default='avatars/default_avatar.jpg',
+                               blank=True, null=True)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
@@ -81,20 +83,20 @@ class Subscription(models.Model):
     """Подписка."""
     follower = models.ForeignKey(
         User, on_delete=models.CASCADE,
-        related_name='follower'
-    )
-    following = models.ForeignKey(
-        User, on_delete=models.CASCADE,
         related_name='following'
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='followers'
     )
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['follower', 'following'],
+                fields=['follower', 'author'],
                 name='unique_subscription'
             )
         ]
 
     def __str__(self):
-        return f'{self.follower} подписан на {self.following}'
+        return f'{self.follower} подписан на {self.author}'

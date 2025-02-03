@@ -65,8 +65,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 STATIC_URL = 'static/'
-# MEDIA_ROOT = BASE_DIR / 'media'
-# MEDIA_URL = '/media/'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
