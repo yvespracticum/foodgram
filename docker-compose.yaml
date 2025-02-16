@@ -1,0 +1,51 @@
+volumes:
+  pg_data:
+  static:
+  media:
+
+services:
+  db:
+    container_name: foodgram-db
+    image: postgres:13.10
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    container_name: foodgram-back
+    depends_on:
+      db:
+        condition: service_healthy
+    build: ./backend
+    env_file: .env
+    volumes:
+      - static:/static
+      - media:/media
+    expose:
+      - 9000
+
+  frontend:
+    container_name: foodgram-front
+    build: ./frontend
+    command: cp -r /app/build/. /static/
+    volumes:
+      - static:/static
+
+  gateway:
+    container_name: foodgram-gateway
+    depends_on:
+      - db
+      - backend
+      - frontend
+    build: ./gateway
+    volumes:
+      - static:/staticfiles
+      - media:/media
+    ports: 
+      - 9000:80
