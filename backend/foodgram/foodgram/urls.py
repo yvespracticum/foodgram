@@ -21,7 +21,9 @@ urlpatterns = [
     path('api/users/me/avatar/', AvatarView.as_view()),
     path('api/users/<int:author_id>/subscribe/', SubscribeView.as_view()),
     path('api/users/subscriptions/', ListMySubscriptionsView.as_view()),
-    path('api/', include(router.urls))
+    path('api/', include(router.urls)),
+    path('s/<str:hashcode>/',
+         RecipeViewSet.as_view({'get': 'redirect_short_link'})),
 ]
 
 if settings.DEBUG:

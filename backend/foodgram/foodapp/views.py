@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
 from rest_framework import status
@@ -159,12 +159,23 @@ class RecipeViewSet(ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['GET'], url_path='get-link')
-    def get_link(self, request, pk=None):
-        """Возвращает короткую ссылку на рецепт."""
+    def get_short_link(self, request, pk=None):
+        """Создает короткую ссылку на рецепт."""
         recipe = get_object_or_404(Recipe, id=pk)
-        hashcode = hashlib.md5(str(recipe.id).encode()).hexdigest()[:3]
-        link = f'{FOODGRAM_URL}s/{hashcode}'
-        return Response({'short-link': link}, status=status.HTTP_200_OK)
+        if not recipe.hashcode:
+            hashcode = hashlib.md5(str(recipe.id).encode()).hexdigest()[:3]
+            recipe.hashcode = hashcode
+            recipe.save()
+        short_link = f'{FOODGRAM_URL}s/{recipe.hashcode}'
+        return Response({'short-link': short_link}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['GET'], url_path='s/(?P<hashcode>[^/.]+)')
+    def redirect_short_link(self, request, hashcode=None):
+        """Перенаправляет с короткой ссылки
+        на страницу рецепта на фронтенде.
+        """
+        recipe = get_object_or_404(Recipe, hashcode=hashcode)
+        return redirect(f'{FOODGRAM_URL}recipes/{recipe.id}')
 
     @action(detail=True, methods=['POST', 'DELETE'],
             permission_classes=[IsAuthenticated], url_path='favorite')

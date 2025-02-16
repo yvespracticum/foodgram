@@ -17,9 +17,10 @@ class FoodgramUser(AbstractUser):
             message=r"Для поля 'username' не принимаются значения, "
                     r"не соответствующие регулярному выражению '^[\w.@+-]+\Z'",
             code='invalid_username')])
-    avatar = models.ImageField(upload_to='avatars/',
-                               default='avatars/default_avatar.jpg',
-                               blank=True, null=True)
+    avatar = models.ImageField(
+        upload_to='avatars/',
+        default='static/media/userpic-icon.2e3faa821bb5398be2c6.jpg',
+        blank=True, null=True)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
@@ -85,10 +86,14 @@ class Recipe(models.Model):
                                          related_name='recipes')
     tags = models.ManyToManyField(Tag, related_name='recipes')
     cooking_time = models.PositiveSmallIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    hashcode = models.CharField(max_length=30, unique=True,
+                                blank=True, null=True)
 
     class Meta:
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
+        ordering = ('-created_at',)
 
     def __str__(self):
         return self.name
