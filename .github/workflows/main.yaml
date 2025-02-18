@@ -107,6 +107,7 @@ jobs:
             sudo docker compose -f docker-compose.prod.yaml down
             sudo docker compose -f docker-compose.prod.yaml pull
             sudo docker compose -f docker-compose.prod.yaml up -d
+            sudo docker system prune -af
   send_telegram_message:
     runs-on: ubuntu-latest
     needs: deploy

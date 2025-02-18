@@ -48,6 +48,7 @@ class FoodgramUserSerializer(serializers.ModelSerializer):
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     """Сериализатор подписок."""
+    id = serializers.IntegerField(source='author.id', read_only=True)
     email = serializers.EmailField(source='author.email', read_only=True)
     username = serializers.CharField(source='author.username', read_only=True)
     first_name = serializers.CharField(source='author.first_name',
@@ -62,7 +63,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Subscription
-        fields = ('email', 'id', 'username', 'first_name', 'last_name',
+        fields = ('id', 'email', 'username', 'first_name', 'last_name',
                   'is_subscribed', 'avatar', 'recipes', 'recipes_count')
 
     def get_is_subscribed(self, obj):

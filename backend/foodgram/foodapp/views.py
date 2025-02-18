@@ -1,4 +1,6 @@
+import csv
 import hashlib
+import io
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -228,19 +230,21 @@ class RecipeViewSet(ModelViewSet):
             permission_classes=[IsAuthenticated],
             url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
-        """Скачивание списка покупок."""
+        """Скачивание списка покупок в формате CSV."""
         ingredients = (RecipeIngredient.objects
                        .filter(recipe__in_shopping_cart__user=request.user)
                        .values('ingredient__name',
                                'ingredient__measurement_unit')
                        .annotate(total_amount=Sum('amount')))
-
-        shopping_list = '\n'.join(
-            f"{item['ingredient__name']} - {item['total_amount']} "
-            f"{item['ingredient__measurement_unit']}" for item in ingredients)
-
-        response = HttpResponse(shopping_list,
-                                content_type='application/octet-stream')
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Ингредиент', 'Количество', 'Единица измерения'])
+        for item in ingredients:
+            writer.writerow([item['ingredient__name'],
+                             item['total_amount'],
+                             item['ingredient__measurement_unit']])
+        response = HttpResponse(output.getvalue(),
+                                content_type='text/csv')
         response[
-            'Content-Disposition'] = 'attachment; filename="shopping_list.txt"'
+            'Content-Disposition'] = 'attachment; filename="shopping_list.csv"'
         return response
