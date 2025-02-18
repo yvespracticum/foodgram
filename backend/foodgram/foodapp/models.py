@@ -17,10 +17,7 @@ class FoodgramUser(AbstractUser):
             message=r"Для поля 'username' не принимаются значения, "
                     r"не соответствующие регулярному выражению '^[\w.@+-]+\Z'",
             code='invalid_username')])
-    avatar = models.ImageField(
-        upload_to='avatars/',
-        default='static/media/userpic-icon.2e3faa821bb5398be2c6.jpg',
-        blank=True, null=True)
+    avatar = models.ImageField(upload_to='avatars/')
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
