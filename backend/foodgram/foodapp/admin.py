@@ -1,11 +1,64 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
+from django.core.exceptions import ValidationError
 
+from .constants import INGREDIENT_MIN_AMOUNT, MIN_COOKING_TIME
 from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                      ShoppingCart, Tag)
 
 User = get_user_model()
+
+
+class RecipeAdminForm(forms.ModelForm):
+    """Проверка на:
+        - минимальное допустимое время приготовления рецепта
+        - наличие тегов
+        - наличие ингредиентов
+        - отсутствие повторяющихся ингредиентов
+        - минимальное количество ингредиента
+    при добавлении рецепта через админ панель.
+    """
+
+    class Meta:
+        model = Recipe
+        exclude = ('hashcode',)
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        cooking_time = cleaned_data.get('cooking_time')
+        if cooking_time is None or cooking_time < MIN_COOKING_TIME:
+            raise ValidationError({
+                'cooking_time': f'Минимальное время '
+                                f'приготовления: {MIN_COOKING_TIME}'})
+
+        tags = cleaned_data.get('tags')
+        if not tags or not tags.exists():
+            raise ValidationError(
+                {'tags': 'Необходимо указать хотя бы один тег.'})
+
+        ingredients_list = self.data.getlist('recipe_ingredients')
+        if not ingredients_list:
+            raise ValidationError(
+                {'recipe_ingredients': 'Список ингредиентов '
+                                       'не может быть пустым.'})
+
+        ingredients_ids_set = set()
+        for ingredient_data in ingredients_list:
+            ingredient_id, amount = map(int, ingredient_data.split(","))
+            if ingredient_id in ingredients_ids_set:
+                raise ValidationError({
+                    'recipe_ingredients': 'Ингредиенты не должны повторяться.'
+                })
+            if amount < INGREDIENT_MIN_AMOUNT:
+                raise ValidationError({
+                    'recipe_ingredients': f'Минимальное кол-во ингредиента: '
+                                          f'{INGREDIENT_MIN_AMOUNT}'})
+            ingredients_ids_set.add(ingredient_id)
+
+        return cleaned_data
 
 
 @admin.register(User)
@@ -39,6 +92,7 @@ class RecipeIngredientInline(admin.TabularInline):
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     """Админка для рецептов."""
+    form = RecipeAdminForm
     list_display = ('id', 'name', 'author',
                     'get_tags', 'favorite_count')
     search_fields = ('name', 'author__username')

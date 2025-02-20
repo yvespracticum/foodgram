@@ -3,12 +3,10 @@ import os
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 
-from .constants import (INGREDIENT_MIN_AMOUNT, INGREDIENT_NAME_MAX_LEN,
-                        MEASUREMENT_UNIT_MAX_LEN, MIN_COOKING_TIME,
+from .constants import (INGREDIENT_NAME_MAX_LEN, MEASUREMENT_UNIT_MAX_LEN,
                         RECIPE_HASHCODE_MAX_LEN, RECIPE_NAME_MAX_LEN,
                         TAG_NAME_MAX_LEN, TAG_SLUG_MAX_LEN,
                         USER_FIRST_NAME_MAX_LEN, USER_LAST_NAME_MAX_LEN,
@@ -99,39 +97,6 @@ class Recipe(models.Model):
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
         ordering = ('-created_at',)
-
-    def clean(self):
-        """Проверка на:
-            - наличие тегов
-            - минимальное допустимое время приготовления рецепта
-            - отсутствие повторяющихся ингредиентов
-            - минимальное количество ингредиента
-        при добавлении рецепта через админ панель.
-        """
-        if self.cooking_time < MIN_COOKING_TIME:
-            raise ValidationError({
-                'cooking_time': f'Минимальное время '
-                                f'приготовления: {MIN_COOKING_TIME}'})
-        if not self.pk and not self.tags.count():
-            raise ValidationError(
-                {'tags': 'Необходимо указать хотя бы один тег.'})
-        if not self.recipe_ingredients.exists():
-            raise ValidationError(
-                {'recipe_ingredients': 'Список ингредиентов '
-                                       'не может быть пустым.'})
-
-        ingredients_ids_set = set()
-        for ingredient in self.recipe_ingredients.all():
-            ingredient_id = ingredient.ingredient.id
-            if ingredient_id in ingredients_ids_set:
-                raise ValidationError(
-                    {'recipe_ingredients': 'Ингредиенты не должны '
-                                           'повторяться.'})
-            if ingredient.amount < INGREDIENT_MIN_AMOUNT:
-                raise ValidationError(
-                    {'recipe_ingredients': f'Минимальное кол-во ингредиента: '
-                                           f'{INGREDIENT_MIN_AMOUNT}'})
-            ingredients_ids_set.add(ingredient_id)
 
     def __str__(self):
         return self.name
