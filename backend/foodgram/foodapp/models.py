@@ -108,23 +108,21 @@ class Recipe(models.Model):
             - минимальное количество ингредиента
         при добавлении рецепта через админ панель.
         """
-        if not self.tags.exists():
-            raise ValidationError(
-                {'tags': 'Необходимо указать хотя бы один тег.'})
         if self.cooking_time < MIN_COOKING_TIME:
             raise ValidationError({
                 'cooking_time': f'Минимальное время '
                                 f'приготовления: {MIN_COOKING_TIME}'})
-
-        ingredients_list = self.recipe_ingredients.all()
-        if not ingredients_list:
+        if not self.pk and not self.tags.count():
+            raise ValidationError(
+                {'tags': 'Необходимо указать хотя бы один тег.'})
+        if not self.recipe_ingredients.exists():
             raise ValidationError(
                 {'recipe_ingredients': 'Список ингредиентов '
                                        'не может быть пустым.'})
 
         ingredients_ids_set = set()
-        for ingredient in ingredients_list:
-            ingredient_id = ingredient.ingredient_id
+        for ingredient in self.recipe_ingredients.all():
+            ingredient_id = ingredient.ingredient.id
             if ingredient_id in ingredients_ids_set:
                 raise ValidationError(
                     {'recipe_ingredients': 'Ингредиенты не должны '
