@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 
+from .constants import (DEFAULT_RECIPES_AMOUNT_AT_SUBSCRIPTIONS_PAGE,
+                        INGREDIENT_MIN_AMOUNT, MIN_COOKING_TIME)
 from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                      ShoppingCart, Subscription, Tag)
 
@@ -86,7 +88,9 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         if recipes_limit and recipes_limit.isdigit():
             return RecipeShortSerializer(recipes[:int(recipes_limit)],
                                          many=True).data
-        return RecipeShortSerializer(recipes[:3], many=True).data
+        return RecipeShortSerializer(
+            recipes[:DEFAULT_RECIPES_AMOUNT_AT_SUBSCRIPTIONS_PAGE],
+            many=True).data
 
 
 class AvatarSerializer(serializers.ModelSerializer):
@@ -211,7 +215,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def validate_ingredients(self, value):
         """Проверка: список ингредиентов не пуст,
-        без дублей и количества >= 1.
+        без дублей и количество ингредиента не меньше минимума.
         """
         if not value:
             raise serializers.ValidationError(
@@ -223,9 +227,9 @@ class RecipeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     f'Ингредиента с id={ingredient_id} не существует.')
             amount = item['amount']
-            if amount < 1:
+            if amount < INGREDIENT_MIN_AMOUNT:
                 raise serializers.ValidationError(
-                    'Количество ингредиента должно быть не меньше 1.')
+                    f'Минимальное кол-во ингредиента: {INGREDIENT_MIN_AMOUNT}')
             if ingredient_id in added_ingredients:
                 raise serializers.ValidationError(
                     'Ингредиенты не должны повторяться.')
@@ -243,9 +247,9 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def validate_cooking_time(self, value):
         """Проверка: время приготовления >= 1."""
-        if value < 1:
+        if value < MIN_COOKING_TIME:
             raise serializers.ValidationError(
-                'Время приготовления должно быть не меньше 1.')
+                f'Минимальное время приготовления: {MIN_COOKING_TIME}')
         return value
 
     def create(self, validated_data):

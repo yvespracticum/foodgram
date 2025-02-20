@@ -2,5 +2,6 @@ from django.apps import AppConfig
 
 
 class FoodappConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "foodapp"
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'foodapp'
+    verbose_name = 'Основное приложение проекта'

@@ -3,14 +3,22 @@ import os
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+
+from .constants import (INGREDIENT_MIN_AMOUNT, INGREDIENT_NAME_MAX_LEN,
+                        MEASUREMENT_UNIT_MAX_LEN, MIN_COOKING_TIME,
+                        RECIPE_HASHCODE_MAX_LEN, RECIPE_NAME_MAX_LEN,
+                        TAG_NAME_MAX_LEN, TAG_SLUG_MAX_LEN,
+                        USER_FIRST_NAME_MAX_LEN, USER_LAST_NAME_MAX_LEN,
+                        USER_USERNAME_MAX_LEN)
 
 
 class FoodgramUser(AbstractUser):
     """Пользователь."""
     username = models.CharField(
-        max_length=150,
+        max_length=USER_USERNAME_MAX_LEN,
         unique=True,
         validators=[RegexValidator(
             regex=r'^[\w.@+-]+\Z',
@@ -19,8 +27,8 @@ class FoodgramUser(AbstractUser):
             code='invalid_username')])
     avatar = models.ImageField(upload_to='avatars/')
     email = models.EmailField(unique=True)
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
+    first_name = models.CharField(max_length=USER_FIRST_NAME_MAX_LEN)
+    last_name = models.CharField(max_length=USER_LAST_NAME_MAX_LEN)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ('username', 'first_name', 'last_name')
@@ -47,8 +55,8 @@ User = get_user_model()
 
 class Ingredient(models.Model):
     """Ингредиент."""
-    name = models.CharField(max_length=200, unique=True)
-    measurement_unit = models.CharField(max_length=20)
+    name = models.CharField(max_length=INGREDIENT_NAME_MAX_LEN, unique=True)
+    measurement_unit = models.CharField(max_length=MEASUREMENT_UNIT_MAX_LEN)
 
     class Meta:
         verbose_name = 'Ингредиент'
@@ -60,8 +68,8 @@ class Ingredient(models.Model):
 
 class Tag(models.Model):
     """Тег."""
-    name = models.CharField(max_length=20, unique=True)
-    slug = models.SlugField(max_length=20, unique=True)
+    name = models.CharField(max_length=TAG_NAME_MAX_LEN, unique=True)
+    slug = models.SlugField(max_length=TAG_SLUG_MAX_LEN, unique=True)
 
     class Meta:
         verbose_name = 'Тег'
@@ -75,7 +83,7 @@ class Recipe(models.Model):
     """Рецепт."""
     author = models.ForeignKey(User, on_delete=models.CASCADE,
                                related_name='recipes')
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=RECIPE_NAME_MAX_LEN)
     image = models.ImageField(upload_to='recipes/')
     text = models.TextField()
     ingredients = models.ManyToManyField(Ingredient,
@@ -84,13 +92,48 @@ class Recipe(models.Model):
     tags = models.ManyToManyField(Tag, related_name='recipes')
     cooking_time = models.PositiveSmallIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
-    hashcode = models.CharField(max_length=30, unique=True,
-                                blank=True, null=True)
+    hashcode = models.CharField(max_length=RECIPE_HASHCODE_MAX_LEN,
+                                unique=True, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Рецепт'
         verbose_name_plural = 'Рецепты'
         ordering = ('-created_at',)
+
+    def clean(self):
+        """Проверка на:
+            - наличие тегов
+            - минимальное допустимое время приготовления рецепта
+            - отсутствие повторяющихся ингредиентов
+            - минимальное количество ингредиента
+        при добавлении рецепта через админ панель.
+        """
+        if not self.tags.exists():
+            raise ValidationError(
+                {'tags': 'Необходимо указать хотя бы один тег.'})
+        if self.cooking_time < MIN_COOKING_TIME:
+            raise ValidationError({
+                'cooking_time': f'Минимальное время '
+                                f'приготовления: {MIN_COOKING_TIME}'})
+
+        ingredients_list = self.recipe_ingredients.all()
+        if not ingredients_list:
+            raise ValidationError(
+                {'recipe_ingredients': 'Список ингредиентов '
+                                       'не может быть пустым.'})
+
+        ingredients_ids_set = set()
+        for ingredient in ingredients_list:
+            ingredient_id = ingredient.ingredient_id
+            if ingredient_id in ingredients_ids_set:
+                raise ValidationError(
+                    {'recipe_ingredients': 'Ингредиенты не должны '
+                                           'повторяться.'})
+            if ingredient.amount < INGREDIENT_MIN_AMOUNT:
+                raise ValidationError(
+                    {'recipe_ingredients': f'Минимальное кол-во ингредиента: '
+                                           f'{INGREDIENT_MIN_AMOUNT}'})
+            ingredients_ids_set.add(ingredient_id)
 
     def __str__(self):
         return self.name

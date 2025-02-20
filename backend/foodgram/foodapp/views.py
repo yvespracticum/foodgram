@@ -21,7 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from .constants import FOODGRAM_URL
+from .constants import FOODGRAM_URL, RECIPE_HASHCODE_MAX_LEN
 from .filters import RecipeFilter
 from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                      ShoppingCart, Subscription, Tag)
@@ -42,8 +42,8 @@ class FoodgramUserViewSet(UserViewSet):
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'create'):
-            return [AllowAny()]
-        return [IsAuthenticated()]
+            return (AllowAny,)
+        return (IsAuthenticated,)
 
 
 class SubscribeView(APIView):
@@ -165,7 +165,8 @@ class RecipeViewSet(ModelViewSet):
         """Создает короткую ссылку на рецепт."""
         recipe = get_object_or_404(Recipe, id=pk)
         if not recipe.hashcode:
-            hashcode = hashlib.md5(str(recipe.id).encode()).hexdigest()[:3]
+            hashcode = hashlib.md5(str(recipe.id).encode()).hexdigest()[
+                       :RECIPE_HASHCODE_MAX_LEN]
             recipe.hashcode = hashcode
             recipe.save()
         short_link = f'{FOODGRAM_URL}s/{recipe.hashcode}'

@@ -1,12 +1,14 @@
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from .constants import PAGE_SIZE
+
 
 class CustomPagination(PageNumberPagination):
     """Специальный пагинатор, который может
     принимать query-параметр 'limit'.
     """
-    page_size = 10
+    page_size = PAGE_SIZE
     page_size_query_param = 'limit'
 
     def get_paginated_response(self, data):
