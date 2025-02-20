@@ -166,7 +166,7 @@ class RecipeViewSet(ModelViewSet):
         recipe = get_object_or_404(Recipe, id=pk)
         if not recipe.hashcode:
             hashcode = hashlib.md5(str(recipe.id).encode()).hexdigest()[
-                       :RECIPE_HASHCODE_MAX_LEN]
+                :RECIPE_HASHCODE_MAX_LEN]
             recipe.hashcode = hashcode
             recipe.save()
         short_link = f'{FOODGRAM_URL}s/{recipe.hashcode}'

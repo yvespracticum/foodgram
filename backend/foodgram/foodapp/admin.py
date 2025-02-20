@@ -29,36 +29,45 @@ class RecipeAdminForm(forms.ModelForm):
         cleaned_data = super().clean()
         cooking_time = cleaned_data.get('cooking_time')
         if cooking_time is None or cooking_time < MIN_COOKING_TIME:
-            raise ValidationError({
-                'cooking_time': f'Минимальное время '
-                                f'приготовления: {MIN_COOKING_TIME}'})
+            raise ValidationError(
+                {'cooking_time': (f'Минимальное время приготовления: '
+                                  f'{MIN_COOKING_TIME}')})
+
         tags = cleaned_data.get('tags')
         if not tags or not tags.exists():
             raise ValidationError(
                 {'tags': 'Необходимо указать хотя бы один тег.'})
+
+        if self.instance.pk:
+            # Для существующего рецепта
+            if not self.instance.recipe_ingredients.exists():
+                raise ValidationError(
+                    {'recipe_ingredients': 'Список ингредиентов '
+                                           'не может быть пустым.'})
+
+            ingredients_ids_set = set()
+            for ri in self.instance.recipe_ingredients.all():
+                ingredient_id = ri.ingredient.id
+                if ingredient_id in ingredients_ids_set:
+                    raise ValidationError(
+                        {'recipe_ingredients': 'Ингредиенты не могут '
+                                               'повторяться.'})
+                if ri.amount < INGREDIENT_MIN_AMOUNT:
+                    raise ValidationError(
+                        {'recipe_ingredients': f'Минимальное кол-во '
+                                               f'ингредиента '
+                                               f'{INGREDIENT_MIN_AMOUNT}'})
+                ingredients_ids_set.add(ingredient_id)
+
         return cleaned_data
 
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        if commit:
-            instance.save()
-        if not instance.recipe_ingredients.exists():
+    def clean_cooking_time(self):
+        """Выделенная валидация для времени приготовления."""
+        cooking_time = self.cleaned_data.get('cooking_time')
+        if cooking_time and cooking_time < MIN_COOKING_TIME:
             raise ValidationError(
-                {'recipe_ingredients': 'Список ингредиентов '
-                                       'не может быть пустым.'})
-        ingredients_ids_set = set()
-        for ri in instance.recipe_ingredients.all():
-            ingredient_id = ri.ingredient.id
-            if ingredient_id in ingredients_ids_set:
-                raise ValidationError({
-                    'recipe_ingredients': 'Ингредиенты не могут повторяться.'})
-            if ri.amount < INGREDIENT_MIN_AMOUNT:
-                raise ValidationError({
-                    'recipe_ingredients': f'Минимальное кол-во ингредиента '
-                                          f'{INGREDIENT_MIN_AMOUNT}'})
-            ingredients_ids_set.add(ingredient_id)
-
-        return instance
+                f'Минимальное время приготовления: {MIN_COOKING_TIME}')
+        return cooking_time
 
 
 @admin.register(User)
@@ -83,9 +92,43 @@ class IngredientAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+class RecipeIngredientInlineFormSet(forms.models.BaseInlineFormSet):
+    """Формсет для ингредиентов рецепта с валидацией."""
+
+    def clean(self):
+        """Проверка валидности набора форм ингредиентов."""
+        super().clean()
+
+        # Проверка на наличие хотя бы одного ингредиента
+        has_ingredients = any(
+            form.cleaned_data and not form.cleaned_data.get('DELETE', False)
+            for form in self.forms)
+        if not has_ingredients:
+            raise ValidationError('Добавьте хотя бы один ингредиент.')
+
+        ingredients_ids = set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get('DELETE', False):
+                continue
+
+            ingredient = form.cleaned_data.get('ingredient')
+            if ingredient:
+                if ingredient.id in ingredients_ids:
+                    raise ValidationError('Ингредиенты не могут повторяться.')
+                ingredients_ids.add(ingredient.id)
+
+            amount = form.cleaned_data.get('amount')
+            if amount and amount < INGREDIENT_MIN_AMOUNT:
+                raise ValidationError(f'Минимальное количество ингредиента: '
+                                      f'{INGREDIENT_MIN_AMOUNT}')
+
+
 class RecipeIngredientInline(admin.TabularInline):
-    """Отображение ингредиентов в рецепте."""
+    """Инлайн-форма для ингредиентов рецепта."""
     model = RecipeIngredient
+    formset = RecipeIngredientInlineFormSet
+    min_num = 1
+    validate_min = True
     extra = 0
 
 
