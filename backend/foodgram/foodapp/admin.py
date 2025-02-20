@@ -27,38 +27,38 @@ class RecipeAdminForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-
         cooking_time = cleaned_data.get('cooking_time')
         if cooking_time is None or cooking_time < MIN_COOKING_TIME:
             raise ValidationError({
                 'cooking_time': f'Минимальное время '
                                 f'приготовления: {MIN_COOKING_TIME}'})
-
         tags = cleaned_data.get('tags')
         if not tags or not tags.exists():
             raise ValidationError(
                 {'tags': 'Необходимо указать хотя бы один тег.'})
+        return cleaned_data
 
-        ingredients_list = self.data.getlist('recipe_ingredients')
-        if not ingredients_list:
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+        if not instance.recipe_ingredients.exists():
             raise ValidationError(
                 {'recipe_ingredients': 'Список ингредиентов '
                                        'не может быть пустым.'})
-
         ingredients_ids_set = set()
-        for ingredient_data in ingredients_list:
-            ingredient_id, amount = map(int, ingredient_data.split(","))
+        for ri in instance.recipe_ingredients.all():
+            ingredient_id = ri.ingredient.id
             if ingredient_id in ingredients_ids_set:
                 raise ValidationError({
-                    'recipe_ingredients': 'Ингредиенты не должны повторяться.'
-                })
-            if amount < INGREDIENT_MIN_AMOUNT:
+                    'recipe_ingredients': 'Ингредиенты не могут повторяться.'})
+            if ri.amount < INGREDIENT_MIN_AMOUNT:
                 raise ValidationError({
-                    'recipe_ingredients': f'Минимальное кол-во ингредиента: '
+                    'recipe_ingredients': f'Минимальное кол-во ингредиента '
                                           f'{INGREDIENT_MIN_AMOUNT}'})
             ingredients_ids_set.add(ingredient_id)
 
-        return cleaned_data
+        return instance
 
 
 @admin.register(User)
