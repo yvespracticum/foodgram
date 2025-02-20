@@ -42,8 +42,8 @@ class FoodgramUserViewSet(UserViewSet):
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve', 'create'):
-            return (AllowAny,)
-        return (IsAuthenticated,)
+            return (AllowAny(),)
+        return (IsAuthenticated(),)
 
 
 class SubscribeView(APIView):
