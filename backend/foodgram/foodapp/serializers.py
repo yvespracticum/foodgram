@@ -3,6 +3,7 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 
 from .constants import (DEFAULT_RECIPES_AMOUNT_AT_SUBSCRIPTIONS_PAGE,
@@ -141,7 +142,9 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 class IngredientInRecipeSerializer(serializers.ModelSerializer):
     """Сериализатор ингредиентов в рецепте с полем 'amount'."""
-    id = serializers.IntegerField()
+    id = serializers.PrimaryKeyRelatedField(
+        queryset=Ingredient.objects.all(),
+        source='ingredient')
     name = serializers.SerializerMethodField()
     measurement_unit = serializers.SerializerMethodField()
 
@@ -222,7 +225,7 @@ class RecipeSerializer(serializers.ModelSerializer):
                 'Список ингредиентов не может быть пустым.')
         added_ingredients = set()
         for item in value:
-            ingredient_id = item['id']
+            ingredient_id = item.get('ingredient').id
             if not Ingredient.objects.filter(id=ingredient_id).exists():
                 raise serializers.ValidationError(
                     f'Ингредиента с id={ingredient_id} не существует.')
@@ -260,29 +263,43 @@ class RecipeSerializer(serializers.ModelSerializer):
         recipe = Recipe.objects.create(**validated_data)
         recipe.tags.set(tags)
         for ingredient in ingredients:
-            ingredient_instance = Ingredient.objects.get(id=ingredient['id'])
             RecipeIngredient.objects.create(recipe=recipe,
-                                            ingredient=ingredient_instance,
+                                            ingredient=get_object_or_404(
+                                                Ingredient,
+                                                id=ingredient.get(
+                                                    'ingredient').id),
                                             amount=ingredient['amount'])
         return recipe
 
     def update(self, instance, validated_data):
+        with open('debug.log', 'a') as f:
+            f.write("\n\n--- New Update ---\n")
+            f.write(
+                f"Recipe ingredients: "
+                f"{validated_data.get('recipe_ingredients')}\n")
         if 'tags' not in validated_data:
             raise serializers.ValidationError({'tags': 'Обязательное поле.'})
-        else:
-            instance.tags.set(validated_data.pop('tags'))
         if 'recipe_ingredients' not in validated_data:
-            raise serializers.ValidationError({'tags': 'Обязательное поле.'})
-        else:
-            ingredients = validated_data.pop('recipe_ingredients')
-            instance.recipe_ingredients.all().delete()
-            for ingredient in ingredients:
-                ingredient_instance = Ingredient.objects.get(
-                    id=ingredient['id'])
-                RecipeIngredient.objects.create(recipe=instance,
-                                                ingredient=ingredient_instance,
-                                                amount=ingredient['amount'])
-        return super().update(instance, validated_data)
+            raise serializers.ValidationError(
+                {'ingredients': 'Обязательное поле.'})
+        instance.name = validated_data.get('name', instance.name)
+        instance.image = validated_data.get('image', instance.image)
+        instance.text = validated_data.get('text', instance.text)
+        instance.cooking_time = validated_data.get('cooking_time',
+                                                   instance.cooking_time)
+        instance.tags.clear()
+        instance.tags.set(validated_data.pop('tags'))
+        recipe_ingredients = validated_data.pop('recipe_ingredients')
+        instance.recipe_ingredients.all().delete()
+        RecipeIngredient.objects.bulk_create([
+            RecipeIngredient(
+                recipe=instance,
+                ingredient=get_object_or_404(Ingredient,
+                                             id=ingredient.get(
+                                                 'ingredient').id),
+                amount=ingredient['amount']
+            ) for ingredient in recipe_ingredients])
+        return instance
 
 
 class RecipeShortSerializer(serializers.ModelSerializer):
