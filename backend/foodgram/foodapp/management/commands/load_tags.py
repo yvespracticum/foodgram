@@ -2,11 +2,11 @@ import json
 
 from django.core.management.base import BaseCommand
 
-from ...models import Ingredient
+from ...models import Tag
 
 
 class Command(BaseCommand):
-    help = 'Загрузить в базу данных список ингредиентов из json.'
+    help = 'Загрузить в базу данных список тегов из json.'
 
     def add_arguments(self, parser):
         parser.add_argument('json_file', type=str, help='Путь к json файлу.')
@@ -16,12 +16,10 @@ class Command(BaseCommand):
         try:
             with open(json_file_path, encoding='utf-8') as file:
                 data = json.load(file)
-            ingredients = [Ingredient(
-                name=item["name"],
-                measurement_unit=item["measurement_unit"]) for item in data]
-            Ingredient.objects.bulk_create(ingredients)
+            tags = [Tag(name=item["name"], slug=item["slug"]) for item in data]
+            Tag.objects.bulk_create(tags)
             self.stdout.write(self.style.SUCCESS(
-                f'Загружено ингредиентов: {len(ingredients)}'))
+                f'Загружено тегов: {len(tags)}'))
         except FileNotFoundError:
             self.stdout.write(
                 self.style.ERROR(f'Файл не найден: {json_file_path}'))

@@ -71,7 +71,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 STATIC_ROOT = '/static/static'
 STATIC_URL = '/static/'
-MEDIA_ROOT = '/media'
+MEDIA_ROOT = '/media/'
 MEDIA_URL = '/media/'
 LANGUAGE_CODE = 'ru-ru'
 USE_TZ = True

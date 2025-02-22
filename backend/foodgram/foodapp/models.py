@@ -3,10 +3,11 @@ import os
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import RegexValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
-from .constants import (INGREDIENT_NAME_MAX_LEN, MEASUREMENT_UNIT_MAX_LEN,
+from .constants import (INGREDIENT_MIN_AMOUNT, INGREDIENT_NAME_MAX_LEN,
+                        MEASUREMENT_UNIT_MAX_LEN, MIN_COOKING_TIME,
                         RECIPE_HASHCODE_MAX_LEN, RECIPE_NAME_MAX_LEN,
                         TAG_NAME_MAX_LEN, TAG_SLUG_MAX_LEN,
                         USER_FIRST_NAME_MAX_LEN, USER_LAST_NAME_MAX_LEN,
@@ -79,16 +80,19 @@ class Tag(models.Model):
 
 class Recipe(models.Model):
     """Рецепт."""
-    author = models.ForeignKey(User, on_delete=models.CASCADE,
+    author = models.ForeignKey(User, verbose_name='Автор',
+                               on_delete=models.CASCADE,
                                related_name='recipes')
-    name = models.CharField(max_length=RECIPE_NAME_MAX_LEN)
-    image = models.ImageField(upload_to='recipes/')
-    text = models.TextField()
-    ingredients = models.ManyToManyField(Ingredient,
-                                         through='RecipeIngredient',
-                                         related_name='recipes')
-    tags = models.ManyToManyField(Tag, related_name='recipes')
-    cooking_time = models.PositiveSmallIntegerField()
+    name = models.CharField('Название', max_length=RECIPE_NAME_MAX_LEN)
+    image = models.ImageField('Изображение', upload_to='recipes/')
+    text = models.TextField('Описание')
+    ingredients = models.ManyToManyField(Ingredient, related_name='recipes',
+                                         through='RecipeIngredient')
+    tags = models.ManyToManyField(Tag, verbose_name='Теги',
+                                  related_name='recipes', through='RecipeTag')
+    cooking_time = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(MIN_COOKING_TIME)],
+        verbose_name="Время приготовления")
     created_at = models.DateTimeField(auto_now_add=True)
     hashcode = models.CharField(max_length=RECIPE_HASHCODE_MAX_LEN,
                                 unique=True, blank=True, null=True)
@@ -102,16 +106,40 @@ class Recipe(models.Model):
         return self.name
 
 
+class RecipeTag(models.Model):
+    """Связующая модель рецепт-тег."""
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE,
+                               related_name='recipe_tags')
+    tag = models.ForeignKey(Tag, verbose_name='Тег', on_delete=models.CASCADE,
+                            related_name='tag_recipes')
+
+    class Meta:
+        verbose_name = 'Тег рецепта'
+        verbose_name_plural = 'Теги рецепта'
+        constraints = [
+            models.UniqueConstraint(fields=['recipe', 'tag'],
+                                    name='unique_recipe_tag')]
+
+    def __str__(self):
+        return f'Связь рецепт-тег: {self.recipe}-{self.tag}'
+
+
 class RecipeIngredient(models.Model):
     """Ингредиент в составе рецепта."""
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE,
                                related_name='recipe_ingredients')
-    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE)
-    amount = models.IntegerField()
+    ingredient = models.ForeignKey(Ingredient, verbose_name='Ингредиент',
+                                   on_delete=models.CASCADE)
+    amount = models.IntegerField(verbose_name='Количество',
+                                 validators=[
+                                     MinValueValidator(INGREDIENT_MIN_AMOUNT)])
 
     class Meta:
         verbose_name = 'Ингредиент в рецепте'
         verbose_name_plural = 'Ингредиенты в рецепте'
+        constraints = [
+            models.UniqueConstraint(fields=['recipe', 'ingredient'],
+                                    name='unique_recipe_ingredient')]
 
     def __str__(self):
         return (f'{self.ingredient}: {self.amount} '

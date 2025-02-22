@@ -54,4 +54,13 @@ ALLOWED_HOSTS=localhost,127.0.0.1  # Для сервера укажите дом
 docker-compose up -d --build
 ```
 
+#### 4. Загрузка ингредиентов и тегов в базу
+
+```bash
+docker-compose exec backend python manage.py load_tags tags.json
+```
+```bash
+docker-compose exec backend python manage.py load_ingredients ingredients.json
+```
+
 Автор проекта: [Иван Подгорный](https://github.com/yvespracticum)

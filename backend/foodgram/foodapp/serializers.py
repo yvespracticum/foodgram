@@ -3,11 +3,9 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 
-from .constants import (DEFAULT_RECIPES_AMOUNT_AT_SUBSCRIPTIONS_PAGE,
-                        INGREDIENT_MIN_AMOUNT, MIN_COOKING_TIME)
+from .constants import DEFAULT_RECIPES_AMOUNT_AT_SUBSCRIPTIONS_PAGE
 from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                      ShoppingCart, Subscription, Tag)
 
@@ -216,89 +214,71 @@ class RecipeSerializer(serializers.ModelSerializer):
                                                many=True).data
         return representation
 
-    def validate_ingredients(self, value):
-        """Проверка: список ингредиентов не пуст,
-        без дублей и количество ингредиента не меньше минимума.
-        """
-        if not value:
+    def validate_tags(self, tags):
+        """Валидация тегов."""
+        if not tags:
             raise serializers.ValidationError(
-                'Список ингредиентов не может быть пустым.')
-        added_ingredients = set()
-        for item in value:
-            ingredient_id = item.get('ingredient').id
-            if not Ingredient.objects.filter(id=ingredient_id).exists():
-                raise serializers.ValidationError(
-                    f'Ингредиента с id={ingredient_id} не существует.')
-            amount = item['amount']
-            if amount < INGREDIENT_MIN_AMOUNT:
-                raise serializers.ValidationError(
-                    f'Минимальное кол-во ингредиента: {INGREDIENT_MIN_AMOUNT}')
-            if ingredient_id in added_ingredients:
-                raise serializers.ValidationError(
-                    'Ингредиенты не должны повторяться.')
-            added_ingredients.add(ingredient_id)
-        return value
+                {'tags': 'Необходимо указать хотя бы один тег.'})
+        tag_ids = [tag.id for tag in tags]
+        if len(tag_ids) != len(set(tag_ids)):
+            raise serializers.ValidationError(
+                {'tags': 'Теги не должны повторяться.'})
+        return tags
 
-    def validate_tags(self, value):
-        """Проверка: список тегов не пуст и без дублей."""
-        if not value:
+    def validate_ingredients(self, ingredients):
+        """Валидация ингредиентов."""
+        if not ingredients:
             raise serializers.ValidationError(
-                'Необходимо указать хотя бы один тег.')
-        if len(value) != len(set(value)):
-            raise serializers.ValidationError('Теги не должны повторяться.')
-        return value
-
-    def validate_cooking_time(self, value):
-        """Проверка: время приготовления >= 1."""
-        if value < MIN_COOKING_TIME:
+                {'ingredients': 'Список ингредиентов не может быть пустым.'})
+        ingredient_ids = [ingredient['ingredient'].id for ingredient in
+                          ingredients]
+        if len(ingredient_ids) != len(set(ingredient_ids)):
             raise serializers.ValidationError(
-                f'Минимальное время приготовления: {MIN_COOKING_TIME}')
-        return value
+                {'ingredients': 'Ингредиенты не должны повторяться.'})
+        return ingredients
 
     def create(self, validated_data):
+        """Создание рецепта с учетом вложенных полей."""
         request = self.context.get('request')
         validated_data['author'] = request.user
-        ingredients = validated_data.pop('recipe_ingredients')
         tags = validated_data.pop('tags')
+        ingredients = validated_data.pop('recipe_ingredients')
+        self.validate_tags(tags)
+        self.validate_ingredients(ingredients)
         recipe = Recipe.objects.create(**validated_data)
         recipe.tags.set(tags)
-        for ingredient in ingredients:
-            RecipeIngredient.objects.create(recipe=recipe,
-                                            ingredient=get_object_or_404(
-                                                Ingredient,
-                                                id=ingredient.get(
-                                                    'ingredient').id),
-                                            amount=ingredient['amount'])
+        RecipeIngredient.objects.bulk_create([
+            RecipeIngredient(recipe=recipe,
+                             ingredient=ingredient.get('ingredient'),
+                             amount=ingredient['amount']
+                             ) for ingredient in ingredients])
         return recipe
 
     def update(self, instance, validated_data):
-        with open('debug.log', 'a') as f:
-            f.write("\n\n--- New Update ---\n")
-            f.write(
-                f"Recipe ingredients: "
-                f"{validated_data.get('recipe_ingredients')}\n")
+        """Обновление рецепта с учетом вложенных полей."""
         if 'tags' not in validated_data:
-            raise serializers.ValidationError({'tags': 'Обязательное поле.'})
+            raise serializers.ValidationError(
+                {'tags': 'Поле tags обязательно для обновления.'})
         if 'recipe_ingredients' not in validated_data:
             raise serializers.ValidationError(
-                {'ingredients': 'Обязательное поле.'})
-        instance.name = validated_data.get('name', instance.name)
-        instance.image = validated_data.get('image', instance.image)
-        instance.text = validated_data.get('text', instance.text)
-        instance.cooking_time = validated_data.get('cooking_time',
-                                                   instance.cooking_time)
-        instance.tags.clear()
-        instance.tags.set(validated_data.pop('tags'))
-        recipe_ingredients = validated_data.pop('recipe_ingredients')
-        instance.recipe_ingredients.all().delete()
-        RecipeIngredient.objects.bulk_create([
-            RecipeIngredient(
-                recipe=instance,
-                ingredient=get_object_or_404(Ingredient,
-                                             id=ingredient.get(
-                                                 'ingredient').id),
-                amount=ingredient['amount']
-            ) for ingredient in recipe_ingredients])
+                {'ingredients': 'Поле ingredients обязательно для обновления.'}
+            )
+        tags = validated_data.pop('tags', None)
+        if tags is not None:
+            self.validate_tags(tags)
+            instance.tags.set(tags)
+        ingredients = validated_data.pop('recipe_ingredients', None)
+        if ingredients is not None:
+            self.validate_ingredients(ingredients)
+            instance.recipe_ingredients.all().delete()
+            RecipeIngredient.objects.bulk_create([
+                RecipeIngredient(recipe=instance,
+                                 ingredient=ingredient.get('ingredient'),
+                                 amount=ingredient['amount']
+                                 ) for ingredient in ingredients])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
         return instance
 
 
